@@ -10,6 +10,7 @@
 
 import { validateSkill } from '../test/helpers/skill-parser';
 import { discoverTemplates, discoverSkillFiles } from './discover-skills';
+import { getHostConfig } from '../hosts/index';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
@@ -65,11 +66,24 @@ for (const file of SKILL_FILES) {
 console.log('\n  Templates:');
 const TEMPLATES = discoverTemplates(ROOT);
 
+// The claude host deliberately does not generate some skills (generation.skipSkills
+// in hosts/claude.ts — e.g. the /claude outside-voice skill, which exists for
+// non-Claude hosts). Those have a .tmpl but intentionally no generated SKILL.md in
+// ROOT. Without this, skill:check reports them as "generated file missing!" and tells
+// you to run gen:skill-docs, which by design will never create them — a permanent
+// failure with unfollowable advice.
+const CLAUDE_SKIPPED = new Set(getHostConfig('claude').generation.skipSkills ?? []);
+
 for (const { tmpl, output } of TEMPLATES) {
   const tmplPath = path.join(ROOT, tmpl);
   const outPath = path.join(ROOT, output);
+  const skillDir = path.basename(path.dirname(tmpl));
   if (!fs.existsSync(tmplPath)) {
     console.log(`  \u26a0\ufe0f  ${output.padEnd(30)} — no template`);
+    continue;
+  }
+  if (CLAUDE_SKIPPED.has(skillDir)) {
+    console.log(`  \u26a0\ufe0f  ${output.padEnd(30)} — not generated for the claude host (skipSkills)`);
     continue;
   }
   if (!fs.existsSync(outPath)) {
