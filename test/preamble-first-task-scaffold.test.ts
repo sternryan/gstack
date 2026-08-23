@@ -18,8 +18,21 @@ const ENUM = new Set([
   'code_ruby', 'code_ios', 'branch_ahead', 'dirty_default', 'clean_default', 'nongit',
 ]);
 
+// Hermetic against the developer's global git config. Two things in a real
+// ~/.gitconfig break these fixtures:
+//   - init.templateDir seeds hooks into every `git init`, so a global
+//     pre-commit hook runs inside the fixture repo. A common one runs the
+//     project's tests by marker file, which means a stub `go.mod` triggers
+//     `go test ./...` and a stub `pyproject.toml` triggers pytest -- both
+//     exit non-zero on a fixture with no real project, blocking the commit
+//     and failing the test with a bare "Command failed: git commit".
+//   - core.hooksPath does the same thing more directly.
+// CI never sees this because CI has no global config, so the suite passes
+// there and fails only on a developer machine. Pin both off.
 const GIT_ENV = {
   ...process.env,
+  GIT_CONFIG_GLOBAL: '/dev/null',
+  GIT_CONFIG_SYSTEM: '/dev/null',
   GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@e.x',
   GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@e.x',
 };
