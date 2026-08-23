@@ -366,6 +366,25 @@ function spawnClaude(cols: number, rows: number, onData: (chunk: Buffer) => void
     },
     env,
   });
+
+  // Bun's `terminal:` spawn option is what makes this a PTY at all (added in
+  // Bun 1.3.x; this code was verified on 1.3.10). On an older Bun the option is
+  // silently IGNORED: spawn succeeds, `proc.terminal` is undefined, and every
+  // later `proc?.terminal?.write?.(...)` optional-chains into a NO-OP. The child
+  // then gets no stdin, reads EOF and exits immediately, so the only symptom is a
+  // WS close with "pty exited" and zero output -- with nothing anywhere naming
+  // the real cause. Fail loudly instead: a version floor is not something to
+  // discover by debugging an empty terminal.
+  if (!proc?.terminal) {
+    console.error(
+      `[terminal-agent] FATAL: Bun ${Bun.version} does not support the \`terminal:\` spawn option, ` +
+      `so no PTY was created (proc.terminal is undefined). gstack requires Bun >= 1.3.10 for the ` +
+      `browse terminal. Upgrade Bun, or expect every PTY session to close immediately with no output.`,
+    );
+    try { proc?.kill?.(); } catch {}
+    return null;
+  }
+
   return proc;
 }
 
