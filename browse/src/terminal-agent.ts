@@ -346,7 +346,18 @@ function spawnClaude(cols: number, rows: number, onData: (chunk: Buffer) => void
   const stateDir = path.dirname(STATE_FILE);
   const tabHint = buildTabAwarenessHint(stateDir);
 
-  const proc = (Bun as any).spawn([claudePath, '--append-system-prompt', tabHint], {
+  // The BROWSE_TERMINAL_BINARY override (see findClaude) points at a plain
+  // shell in the integration tests. Claude-specific flags are meaningless to
+  // it: `/bin/bash --append-system-prompt <hint>` makes bash print its usage
+  // to stderr and exit immediately, so the PTY dies before it echoes anything
+  // and the round-trip test times out with empty output. Only pass claude's
+  // flags when we are actually launching claude.
+  const usingTestBinary = claudePath === process.env.BROWSE_TERMINAL_BINARY;
+  const spawnArgs = usingTestBinary
+    ? [claudePath]
+    : [claudePath, '--append-system-prompt', tabHint];
+
+  const proc = (Bun as any).spawn(spawnArgs, {
     windowsHide: true,
     terminal: {
       rows,
